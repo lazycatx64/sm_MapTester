@@ -74,113 +74,123 @@ public OnConfigsExecuted() {
 	if (StrEqual(g_szCvarMapList, "") || IsNullString(g_szCvarMapList))
 		g_szCvarMapList = "0"
 
+
 	if (StrEqual(g_szCvarMapList, "0")) {
-		LM_PrintToServerInfo("Searching from 'maps/' folder...")
-
-		DirectoryListing arDirList = OpenDirectory(g_szMapsFolder)
-		Handle hMapList = OpenFile(g_szMaplistTxt, "w")
-
-		char szMapName[PLATFORM_MAX_PATH]
-		while (arDirList.GetNext(szMapName, sizeof(szMapName))) {
-			
-			// filters . and ..
-			if (StrContains(szMapName, ".") == 0)
-				continue
-
-			// filters not .bsp
-			if (StrContains(szMapName, ".bsp") != strlen(szMapName)-4)
-				continue
-
-			ReplaceString(szMapName, sizeof(szMapName), ".bsp", "")
-			ReplaceString(szMapName, sizeof(szMapName), "\r", "")
-			ReplaceString(szMapName, sizeof(szMapName), "\n", "")
-			WriteFileLine(hMapList, szMapName)
-		}
-		
-		LM_PrintToServerInfo("'data/maptester/maplist.txt' generated.")
-		CloseHandle(hMapList)
-
-
-
+		Check_MapsFolder()
 
 	} else if (StrEqual(g_szCvarMapList, "1")) {
-		LM_PrintToServerInfo("Searching from 'mapcyclefile' file...")
-
-		GetConVarString(FindConVar("mapcyclefile"), g_szMapcyclefile, sizeof(g_szMapcyclefile))
-		Format(g_szMapcyclefile, sizeof(g_szMapcyclefile), "cfg/%s", g_szMapcyclefile)
-		
-		if (!FileExists(g_szMapcyclefile)) {
-			LM_PrintToServerWarning("'cfg/mapcycle.txt' was not found, trying default mapcycle file... 'cfg/mapcycle_default.txt")
-		}
-		g_szMapcyclefile = "cfg/mapcycle_default.txt"
-		if (!FileExists(g_szMapcyclefile)) {
-			LM_PrintToServerError("both mapcycle files in cfg/ was not found, set 'lm_maptester_maplist' to 0 or assign another map list file!")
-			LM_PrintToServerError("Map Tester will now stop.")
-			return
-		}
-
-		Handle hMapCycle = OpenFile(g_szMapcyclefile, "r")
-
-		Handle hMapList = OpenFile(g_szMaplistTxt, "w")
-		char szMapName[PLATFORM_MAX_PATH]
-		while (!IsEndOfFile(hMapCycle)) {
-			if (!ReadFileLine(hMapCycle, szMapName, sizeof(szMapName)))
-				break
-			
-			// filters //
-			if (StrContains(szMapName, "//") == 0)
-				continue
-
-			if (StrContains(szMapName, ".bsp") == strlen(szMapName)-4)
-				ReplaceString(szMapName, sizeof(szMapName), ".bsp", "")
-
-			ReplaceString(szMapName, sizeof(szMapName), "\r", "")
-			ReplaceString(szMapName, sizeof(szMapName), "\n", "")
-			WriteFileLine(hMapList, szMapName)
-		}
-		LM_PrintToServerInfo("'data/maptester/maplist.txt' generated.")
-		CloseHandle(hMapList)
-		CloseHandle(hMapCycle)
-
-
+		Check_MapsCycleFile()
 
 	} else {
-		LM_PrintToServerInfo("Direct file assigned, searching from '%s' file...", g_szCvarMapList)
-
-		if (!FileExists(g_szCvarMapList)) {
-			LM_PrintToServerError("'%s' was not found, please reconfig ConVar 'lm_maptester_maplist', assign another file or set to 0 to just search map folder.", g_szCvarMapList)
-			LM_PrintToServerError("Map Tester will now stop.")
-			return
-		}
-
-		Handle hMapCycle = OpenFile(g_szCvarMapList, "r")
-
-		Handle hMapList = OpenFile(g_szMaplistTxt, "w")
-		char szMapName[PLATFORM_MAX_PATH]
-		while (!IsEndOfFile(hMapCycle)) {
-			if (!ReadFileLine(hMapCycle, szMapName, sizeof(szMapName)))
-				break
-			
-			// filters //
-			if (StrContains(szMapName, "//") == 0)
-				continue
-
-			if (StrContains(szMapName, ".bsp") == strlen(szMapName)-4)
-				ReplaceString(szMapName, sizeof(szMapName), ".bsp", "")
-
-			ReplaceString(szMapName, sizeof(szMapName), "\r", "")
-			ReplaceString(szMapName, sizeof(szMapName), "\n", "")
-			WriteFileLine(hMapList, szMapName)
-		}
-		LM_PrintToServerInfo("'data/maptester/maplist.txt' generated.")
-		CloseHandle(hMapList)
-		CloseHandle(hMapCycle)
-
+		Check_DirectFile()
 
 	}
 }
 
+void Check_MapsFolder() {
 
+	LM_PrintToServerInfo("Searching from 'maps/' folder...")
+
+	DirectoryListing arDirList = OpenDirectory(g_szMapsFolder)
+	Handle hMapList = OpenFile(g_szMaplistTxt, "w")
+
+	char szMapName[PLATFORM_MAX_PATH]
+	while (arDirList.GetNext(szMapName, sizeof(szMapName))) {
+		
+		// filters . and ..
+		if (StrContains(szMapName, ".") == 0)
+			continue
+
+		// filters not .bsp
+		if (StrContains(szMapName, ".bsp") != strlen(szMapName)-4)
+			continue
+
+		ReplaceString(szMapName, sizeof(szMapName), ".bsp", "")
+		ReplaceString(szMapName, sizeof(szMapName), "\r", "")
+		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
+		WriteFileLine(hMapList, szMapName)
+	}
+	
+	LM_PrintToServerInfo("'data/maptester/maplist.txt' generated.")
+	CloseHandle(hMapList)
+
+}
+
+void Check_MapsCycleFile() {
+
+	LM_PrintToServerInfo("Searching from 'mapcyclefile' file...")
+
+	GetConVarString(FindConVar("mapcyclefile"), g_szMapcyclefile, sizeof(g_szMapcyclefile))
+	Format(g_szMapcyclefile, sizeof(g_szMapcyclefile), "cfg/%s", g_szMapcyclefile)
+	
+	if (!FileExists(g_szMapcyclefile)) {
+		LM_PrintToServerWarning("'cfg/mapcycle.txt' was not found, trying default mapcycle file... 'cfg/mapcycle_default.txt")
+	}
+	g_szMapcyclefile = "cfg/mapcycle_default.txt"
+	if (!FileExists(g_szMapcyclefile)) {
+		LM_PrintToServerError("both mapcycle files in cfg/ was not found, set 'lm_maptester_maplist' to 0 or assign another map list file!")
+		LM_PrintToServerError("Map Tester will now stop.")
+		return
+	}
+
+	Handle hMapCycle = OpenFile(g_szMapcyclefile, "r")
+
+	Handle hMapList = OpenFile(g_szMaplistTxt, "w")
+	char szMapName[PLATFORM_MAX_PATH]
+	while (!IsEndOfFile(hMapCycle)) {
+		if (!ReadFileLine(hMapCycle, szMapName, sizeof(szMapName)))
+			break
+		
+		// filters //
+		if (StrContains(szMapName, "//") == 0)
+			continue
+
+		if (StrContains(szMapName, ".bsp") == strlen(szMapName)-4)
+			ReplaceString(szMapName, sizeof(szMapName), ".bsp", "")
+
+		ReplaceString(szMapName, sizeof(szMapName), "\r", "")
+		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
+		WriteFileLine(hMapList, szMapName)
+	}
+	LM_PrintToServerInfo("'data/maptester/maplist.txt' generated.")
+	CloseHandle(hMapList)
+	CloseHandle(hMapCycle)
+
+}
+
+void Check_DirectFile() {
+	
+	LM_PrintToServerInfo("Direct file assigned, searching from '%s' file...", g_szCvarMapList)
+
+	if (!FileExists(g_szCvarMapList)) {
+		LM_PrintToServerError("'%s' was not found, please reconfig ConVar 'lm_maptester_maplist', assign another file or set to 0 to just search map folder.", g_szCvarMapList)
+		LM_PrintToServerError("Map Tester will now stop.")
+		return
+	}
+
+	Handle hMapCycle = OpenFile(g_szCvarMapList, "r")
+
+	Handle hMapList = OpenFile(g_szMaplistTxt, "w")
+	char szMapName[PLATFORM_MAX_PATH]
+	while (!IsEndOfFile(hMapCycle)) {
+		if (!ReadFileLine(hMapCycle, szMapName, sizeof(szMapName)))
+			break
+		
+		// filters //
+		if (StrContains(szMapName, "//") == 0)
+			continue
+
+		if (StrContains(szMapName, ".bsp") == strlen(szMapName)-4)
+			ReplaceString(szMapName, sizeof(szMapName), ".bsp", "")
+
+		ReplaceString(szMapName, sizeof(szMapName), "\r", "")
+		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
+		WriteFileLine(hMapList, szMapName)
+	}
+	LM_PrintToServerInfo("'data/maptester/maplist.txt' generated.")
+	CloseHandle(hMapList)
+	CloseHandle(hMapCycle)
+}
 
 
 
