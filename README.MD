@@ -10,6 +10,7 @@ Note
 
 * It is recommended that at `least one player` stay in the server during the test. Some crashy maps require players to enter the game to trigger additional crash.
 * You might need a good server restarter that can detect `server heartbeats`, in case server `frozen` or popped a `engine error window` on some map, that would cause a normal restarter (batch scripts) could not restart the server properly, it commonly happened in old maps.
+![Engine Error](https://github.com/lazycatx64/sm_MapTester/blob/47b51fdfc4aedcaf7d2f61d3ec601d1b47e2e019/engineerror.png)
 
 Configs
 -----
