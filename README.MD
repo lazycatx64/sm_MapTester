@@ -21,7 +21,7 @@ What can it do?
 Results
 -----
 
-* Good maps that loaded sucessfully will be logged to
+* Good maps that loaded successfully will be logged to
   * `addons/sourcemod/data/maptester/good.txt`
 * Bad maps that crashed during loading will be logged to
   * `addons/sourcemod/data/maptester/bad.txt`
