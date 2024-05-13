@@ -216,15 +216,47 @@ public void OnMapStart() {
 	if (!g_bCvarMapTesterEnabled)
 		return
 
+	char szCurrentMap[64]
+	GetCurrentMap(szCurrentMap, sizeof(szCurrentMap))
+	LM_PrintToServerInfo("Map '%s' successfully loaded, writing to good.txt, going next map in %f seconds...", szCurrentMap, g_fCvarChangeTime)
+
+	WriteCurrentMap(g_szGoodTxt, szCurrentMap)
+
 	CreateTimer(g_fCvarChangeTime, Timer_Countdown)
 }
 
-Action Timer_Countdown(Handle hTimer, any Data) {
+Action Timer_Countdown(Handle hTimer, any data) {
 
 
 
 	return Plugin_Handled
 }
+
+
+
+void WriteCurrentMap(const char[] szFilePath, const char[] szCurrentMap) {
+	bool bFound = false
+	char szMapName[256]
+	Handle hGood = OpenFile(szFilePath, "a+")
+	while(!IsEndOfFile(hGood)) {
+		if (!ReadFileLine(hGood, szMapName, sizeof(szMapName)))
+			break
+		
+		ReplaceString(szMapName, sizeof(szMapName), "\r", "")
+		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
+		if (StrEqual(szMapName, szCurrentMap)) {
+			bFound = true
+			break
+		}
+	}
+	if (!bFound) {
+		WriteFileLine(hGood, szCurrentMap)
+	}
+	CloseHandle(hGood)
+}
+
+
+
 
 
 void LM_PrintToServerInfo(const char[] format, any ...) {
