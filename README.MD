@@ -1,33 +1,49 @@
 Sourcemod Map Tester
 =====
 
-Just got hundred of new maps for your source dedicated server, but some of them are crashing your server, and you got no time to test them all one by one?
+Just got hundreds of new maps for your source dedicated server, but some of them crashes your server and you don't have time to test them manually one by one?
 
 This plugin shall help you go through all those maps
-
-What can it do?
------
-
-* ConVar to enable the Tester.
-* Auto change map every few seconds after map loaded. (Configable ConVar)
-* Can get map list from:
-  * Search in `maps` folder (default)
-  * Built-in ConVar `mapcyclefile` default: `mapcycle.txt`
-    * located in: `cfg/mapcycle.txt`
-  * Any other path to a list file
-    * example: `cfg/rtv.cfg`
-    * or: `cfg/my_new_map_list.txt`
-
-Results
------
-
-* Good maps that loaded successfully will be logged to
-  * `addons/sourcemod/data/maptester/good.txt`
-* Bad maps that crashed during loading will be logged to
-  * `addons/sourcemod/data/maptester/bad.txt`
-* More feature may/might/possibly will be added in future
 
 Note
 -----
 
-You might need a good server restarter that can detect `server heartbeats`, in case server `frozen` or popped a `engine error window` on some map, that would cause a normal restarter (batch scripts) could not restart the server properly, it commonly happened in old maps.
+* It is recommended that at `least one player` stay in the server during the test. Some crashy maps require players to enter the game to trigger additional crash.
+* You might need a good server restarter that can detect `server heartbeats`, in case server `frozen` or popped a `engine error window` on some map, that would cause a normal restarter (batch scripts) could not restart the server properly, it commonly happened in old maps.
+
+Configs
+-----
+
+There's `/cfg/lm_maptester.cfg` included for default ConVars so you can config everything there.
+
+* `lm_maptester_enabled`
+  * To enable/disable the Tester.
+  * Default: 0
+* `lm_maptester_changetime`
+  * After map loaded, X seconds later will go next map
+  * Default: 3 (should keep it long enough to wait for player fully loaded into map)
+* `lm_maptester_maplist`
+  * Decides where we get map list from
+  * Default: 0
+  * 0 = Search in `maps` folder
+  * 1 = Uses built-in ConVar `mapcyclefile` value which default is: `mapcycle.txt`
+    * Will try to search this map list: `cfg/mapcycle.txt`
+    * Will try default list instead of not found: `cfg/mapcycle_default.txt`
+  * Any other path to a list file
+    * example: `cfg/rtv.cfg`
+      * Will try to search this map list: `cfg/rtv.cfg`
+    * or: `cfg/my_new_map_list.txt`
+      * Will try to search this map list: `cfg/my_new_map_list.txt`
+
+Results
+-----
+
+* Good maps that loaded successfully will be logged to here
+  * `addons/sourcemod/data/maptester/good.txt`
+* Bad maps that crashed during loading will be logged to here next time server starts
+  * `addons/sourcemod/data/maptester/bad.txt`
+
+More features?
+-----
+
+More features may/might/possibly will (or not) be added in the future.
