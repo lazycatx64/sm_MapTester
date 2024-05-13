@@ -32,9 +32,9 @@ public Plugin myinfo = {
 	url = ""
 }
 
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, err_max) {
 
-public OnPluginStart() {
-// public OnConfigsExecuted() {
+	LM_PrintToServerInfo("Map Tester loading...")
 
 	g_hCvarMapTesterEnabled	= CreateConVar("lm_maptester_enabled", "1", "Set 1 to start the tester.", FCVAR_NOTIFY, true, 0.0, true, 1.0)
 	g_hCvarMapTesterEnabled.AddChangeHook(Hook_CvarChanged)
@@ -57,11 +57,12 @@ public OnPluginStart() {
 	if (!DirExists(g_szDataFolder))
 		CreateDirectory(g_szDataFolder, 755)
 	
-	LM_PrintToServerInfo("Map Tester loaded")
+	
+	return APLRes_Success
 }
 
-public OnConfigsExecuted() {
 
+public OnPluginStart() {
 	if (!g_bCvarMapTesterEnabled)
 		return
 
@@ -85,7 +86,9 @@ public OnConfigsExecuted() {
 		Check_DirectFile()
 
 	}
+	LM_PrintToServerInfo("Map Tester loaded")
 }
+
 
 void Check_MapsFolder() {
 
