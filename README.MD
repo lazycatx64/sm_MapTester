@@ -24,7 +24,7 @@ There's `/cfg/sourcemod/lm_maptester.cfg` included for default ConVars so you ca
   * Default: 0
 * `lm_maptester_changetime`
   * After map loaded, X seconds later will go next map
-  * Default: 3 (should keep it long enough to wait for player fully loaded into map)
+  * Default: 10 (should keep it long enough to wait for player fully loaded into map)
 * `lm_maptester_maplist`
   * Decides where we get map list from
   * Default: 0
