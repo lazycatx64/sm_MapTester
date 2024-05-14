@@ -35,7 +35,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, err_max) {
 
 	LM_PrintToServerInfo("Map Tester loading...")
 
-	g_hCvarMapTesterEnabled	= CreateConVar("lm_maptester_enabled", "1", "Set 1 to start the tester.", FCVAR_NOTIFY, true, 0.0, true, 1.0)
+	g_hCvarMapTesterEnabled	= CreateConVar("lm_maptester_enabled", "0", "Set 1 to start the tester.", FCVAR_NOTIFY, true, 0.0, true, 1.0)
 	g_hCvarMapTesterEnabled.AddChangeHook(Hook_CvarChanged)
 	CvarChanged(g_hCvarMapTesterEnabled)
 
