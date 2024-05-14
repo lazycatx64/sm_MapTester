@@ -10,7 +10,7 @@ Note
 
 * It is recommended that ***at least one player*** stay in the server during the test. Some crashy maps require players stay inside the game to trigger additional crash.
 
-* You might need a good server restarter that can detect ***server heartbeats***, in case server ***frozen*** or popped a ***Engine Error diaglog*** in some maps, that would cause a normal restarter (batch scripts) could not restart the server properly, this is common in old maps.
+* You may need a good server restarter that can detect ***server heartbeat*** in case the server ***freezes*** or ***Engine Error dialog boxes pop up*** in some maps, this will cause the normal restarter (batch script) to not restart the server properly, this is very common in old maps, otherwise you have to stay in front of the computer to monitor whether your server need a restart.
   * ![Engine Error](/engineerror.png)
 * Currently only tested in HL2DM server, but in theory it should work all source servers that runs SourceMod since it does not touch game data or assets.
 
