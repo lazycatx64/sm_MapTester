@@ -13,10 +13,10 @@ float g_fCvarChangeTime = 10.0
 ConVar g_hCvarMapList
 char g_szCvarMapList[PLATFORM_MAX_PATH] = ""
 
-char g_szNowTxt[PLATFORM_MAX_PATH]       = "now.txt"
+char g_szNowTxt[PLATFORM_MAX_PATH]       = "--now.txt"
 char g_szBadTxt[PLATFORM_MAX_PATH]       = "bad.txt"
 char g_szGoodTxt[PLATFORM_MAX_PATH]      = "good.txt"
-char g_szMaplistTxt[PLATFORM_MAX_PATH]   = "maplist.txt"
+char g_szMaplistTxt[PLATFORM_MAX_PATH]   = "--maplist.txt"
 
 char g_szDataFolder[PLATFORM_MAX_PATH]    = "data/maptester/"
 char g_szMapsFolder[PLATFORM_MAX_PATH]    = "maps/"
@@ -28,7 +28,7 @@ public Plugin myinfo = {
 	author = "LaZycAt",
 	description = "Map Tester that auto run through maps one by one.",
 	version = "1.0.0",
-	url = ""
+	url = "https://github.com/lazycatx64/sm_MapTester"
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, err_max) {
@@ -39,11 +39,11 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, err_max) {
 	g_hCvarMapTesterEnabled.AddChangeHook(Hook_CvarChanged)
 	CvarChanged(g_hCvarMapTesterEnabled)
 
-	g_hCvarChangeTime	= CreateConVar("lm_maptester_changetime", "10", "After map loaded, X seconds later will go next map (default: 10)", FCVAR_NOTIFY, true, 5.0)
+	g_hCvarChangeTime	= CreateConVar("lm_maptester_changetime", "10", "After map loaded, X seconds later will go next map", FCVAR_NOTIFY, true, 0.1)
 	g_hCvarChangeTime.AddChangeHook(Hook_CvarChanged)
 	CvarChanged(g_hCvarChangeTime)
 	
-	g_hCvarMapList	= CreateConVar("lm_maptester_maplist", "0", "0=Maps Folder, 1='mapcyclefile', or path to a list file, changing value will generate", FCVAR_NOTIFY)
+	g_hCvarMapList	= CreateConVar("lm_maptester_maplist", "0", "0=Maps Folder, 1='mapcyclefile', or path to a list file, changing value will regenerate maplist", FCVAR_NOTIFY)
 	g_hCvarMapList.AddChangeHook(Hook_CvarChanged)
 	CvarChanged(g_hCvarMapList)
 
@@ -64,66 +64,49 @@ public OnPluginStart() {
 	if (!g_bCvarMapTesterEnabled)
 		return
 
-	if (!FileExists(g_szMaplistTxt)) {
-		LM_PrintToServerInfo("'data/maptester/maplist.txt' is not generated yet, will generate now...")
-	} else {
-		LM_PrintToServerInfo("'data/maptester/maplist.txt' was found, will start map test loop after map fully loaded...")
-	}
+	Gen_GenerateMapList()
+	Check_NowFile()
+	Check_TestedMaps()
 
-	if (StrEqual(g_szCvarMapList, "") || IsNullString(g_szCvarMapList))
-		g_szCvarMapList = "0"
-
-
-	if (StrEqual(g_szCvarMapList, "0")) {
-		Check_MapsFolder()
-
-	} else if (StrEqual(g_szCvarMapList, "1")) {
-		Check_MapsCycleFile()
-
-	} else {
-		Check_DirectFile()
-
-	}
 	LM_PrintToServerInfo("Map Tester loaded")
-}
-
-public void OnMapInit() {
-	char szCurrentMap[64]
-	GetCurrentMap(szCurrentMap, sizeof(szCurrentMap))
-	LM_PrintToServerInfo("Map '%s' now loading...", szCurrentMap, g_fCvarChangeTime)
-	
-	WriteMapToFile(g_szNowTxt, szCurrentMap)
 }
 
 public void OnMapStart() {
 	if (!g_bCvarMapTesterEnabled)
 		return
+	
+	AutoExecConfig(true, "lm_maptester")
 
 	char szCurrentMap[64]
 	GetCurrentMap(szCurrentMap, sizeof(szCurrentMap))
 	LM_PrintToServerInfo("Map '%s' successfully loaded, going next map in %f seconds...", szCurrentMap, g_fCvarChangeTime)
 
 	WriteMapToFile(g_szGoodTxt, szCurrentMap)
-	RemoveMapFromFile(g_szNowTxt, szCurrentMap)
+	DeleteFile(g_szNowTxt)
 
-	// CreateTimer(g_fCvarChangeTime, Timer_Countdown)
-	CreateTimer(3.0, Timer_Countdown)
+	CreateTimer(g_fCvarChangeTime, Timer_Countdown)
 }
 
 Action Timer_Countdown(Handle hTimer, any data) {
 
-	char szMapName[32]
-	GetNextTestMap(szMapName, sizeof(szMapName))
-	if (StrEqual(szMapName, "")) {
+	char szNextMap[32]
+	
+	if (!GetNextTestMap(szNextMap, sizeof(szNextMap)) || StrEqual(szNextMap, "")) {
 		LM_PrintToServerInfo("==============================================")
 		LM_PrintToServerInfo("Could not get next map! perhaps we tested all maps already?")
 		LM_PrintToServerInfo("Go '%s'", g_szDataFolder)
 		LM_PrintToServerInfo("and see the results in good.txt and bad.txt")
 		LM_PrintToServerInfo("==============================================")
+		DeleteFile(g_szMaplistTxt)
+		return Plugin_Handled
 	}
 
 
-	ForceChangeLevel(szMapName, "Map Test")
+	LM_PrintToServerInfo("Map '%s' now loading...", szNextMap)
+	
+	WriteMapToFile(g_szNowTxt, szNextMap)
+
+	ForceChangeLevel(szNextMap, "Map Test")
 
 	return Plugin_Handled
 }
@@ -139,14 +122,92 @@ void CvarChanged(Handle convar) {
 		g_bCvarMapTesterEnabled = g_hCvarMapTesterEnabled.BoolValue
 	else if (convar == g_hCvarChangeTime)
 		g_fCvarChangeTime = g_hCvarChangeTime.FloatValue
-	else if (convar == g_hCvarMapList)
+	else if (convar == g_hCvarMapList) {
 		g_hCvarMapList.GetString(g_szCvarMapList, sizeof(g_szCvarMapList))
+		Gen_GenerateMapList()
+		Check_TestedMaps()
+	}
 }
 
 
 
+/**
+ * Check if Now.txt exists and has map name it in,
+ * means that map crashed during loading,
+ * then write that to bad.txt.
+ */
+void Check_NowFile() {
 
-void Check_MapsFolder() {
+	if (!FileExists(g_szNowTxt))
+		return
+
+	Handle hNowFile = OpenFile(g_szNowTxt, "r")
+	if (hNowFile == INVALID_HANDLE) {
+		DeleteFile(g_szNowTxt)
+		return
+	}
+
+	char szMapName[32]
+	while (!IsEndOfFile(hNowFile)) {
+		if (!ReadFileLine(hNowFile, szMapName, sizeof(szMapName)))
+			break
+		
+		ReplaceString(szMapName, sizeof(szMapName), "\r", "")
+		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
+
+		if (!StrEqual(szMapName, "") && strlen(szMapName) > 1) {
+			LM_PrintToServerInfo("Writing '%s' map to bad.txt.", szMapName)
+			WriteMapToFile(g_szBadTxt, szMapName)
+			break
+		}
+	}
+
+	CloseHandle(hNowFile)
+	DeleteFile(g_szNowTxt)
+}
+
+/**
+ * Check tested maps from Good.txt and Bad.txt
+ */
+void Check_TestedMaps() {
+
+	if (FileExists(g_szGoodTxt))
+		RemoveDuplicatedFromFile(g_szMaplistTxt, g_szGoodTxt)
+
+	if (FileExists(g_szBadTxt))
+		RemoveDuplicatedFromFile(g_szMaplistTxt, g_szBadTxt)
+	
+}
+
+
+
+/**
+ * Check the ConVar g_szCvarMapList and decide where we get list from.
+ */
+void Gen_GenerateMapList() {
+	
+	if (!FileExists(g_szMaplistTxt)) {
+		LM_PrintToServerInfo("'data/maptester/maplist.txt' is not generated yet, will generate now...")
+	} else {
+		LM_PrintToServerInfo("'data/maptester/maplist.txt' was found, will start map test loop after map fully loaded...")
+	}
+
+	if (StrEqual(g_szCvarMapList, "") || IsNullString(g_szCvarMapList))
+		g_szCvarMapList = "0"
+
+	if (StrEqual(g_szCvarMapList, "0"))
+		Gen_FromMapsFolder()
+	else if (StrEqual(g_szCvarMapList, "1"))
+		Gen_FromMapsCycleFile()
+	else
+		Gen_FromDirectFile()
+
+}
+
+/**
+ * Generate map list from scanning maps folder
+ */
+void Gen_FromMapsFolder() {
 
 	LM_PrintToServerInfo("Searching from 'maps/' folder...")
 
@@ -175,7 +236,10 @@ void Check_MapsFolder() {
 
 }
 
-void Check_MapsCycleFile() {
+/**
+ * Generate map list from mapscycle.txt
+ */
+void Gen_FromMapsCycleFile() {
 
 	LM_PrintToServerInfo("Searching from 'mapcyclefile' file...")
 
@@ -217,7 +281,10 @@ void Check_MapsCycleFile() {
 
 }
 
-void Check_DirectFile() {
+/**
+ * Generate map list from specific file
+ */
+void Gen_FromDirectFile() {
 	
 	LM_PrintToServerInfo("Direct file assigned, searching from '%s' file...", g_szCvarMapList)
 
@@ -253,7 +320,12 @@ void Check_DirectFile() {
 
 
 
-
+/**
+ * Write a map name to specific file.
+ *
+ * @param szFilePath    File path
+ * @param szNewMap      Map name
+ */
 void WriteMapToFile(const char[] szFilePath, const char[] szNewMap) {
 	bool bFound = false
 	char szMapName[256]
@@ -264,6 +336,7 @@ void WriteMapToFile(const char[] szFilePath, const char[] szNewMap) {
 		
 		ReplaceString(szMapName, sizeof(szMapName), "\r", "")
 		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
+
 		if (StrEqual(szMapName, szNewMap)) {
 			bFound = true
 			break
@@ -275,23 +348,44 @@ void WriteMapToFile(const char[] szFilePath, const char[] szNewMap) {
 	CloseHandle(hFile)
 }
 
-void ReadMapFromFile(const char[] szFilePath, char[] szMapName, int iMaxLen) {
+/**
+ * Read the first map name from the file.
+ *
+ * @param szFilePath    File path
+ * @param szMapName     Returned map name
+ * @param iMaxLen       Max length of szMapName
+ * @return True if success; false otherwise
+ */
+bool ReadMapFromFile(const char[] szFilePath, char[] szMapName, int iMaxLen) {
 	
+	bool bFound = false
+	char szBuffer[32]
 	Handle hFile = OpenFile(szFilePath, "r")
 	while(!IsEndOfFile(hFile)) {
-		if (!ReadFileLine(hFile, szMapName, iMaxLen))
+		if (!ReadFileLine(hFile, szBuffer, iMaxLen))
 			break
-		if (StrEqual(szMapName, "") || strlen(szMapName) <= 1)
-			continue
 
-		ReplaceString(szMapName, iMaxLen, "\r", "")
-		ReplaceString(szMapName, iMaxLen, "\n", "")
-		break
+		ReplaceString(szBuffer, iMaxLen, "\r", "")
+		ReplaceString(szBuffer, iMaxLen, "\n", "")
+
+		if (!StrEqual(szBuffer, "") && strlen(szBuffer) > 1) {
+			strcopy(szMapName, iMaxLen, szBuffer)
+			bFound = true
+			break
+		}
+	
 	}
 	// LM_PrintToServerError(szMapName)
 	CloseHandle(hFile)
+	return bFound
 }
 
+/**
+ * Remove a specific map name from file
+ *
+ * @param szFilePath    File path
+ * @param szFindMap     Map name to remove
+ */
 void RemoveMapFromFile(const char[] szFilePath, const char[] szFindMap) {
 	
 	char szMapName[32], szFileTmp[PLATFORM_MAX_PATH]
@@ -304,18 +398,13 @@ void RemoveMapFromFile(const char[] szFilePath, const char[] szFindMap) {
 		if (!ReadFileLine(hFile, szMapName, sizeof(szMapName)))
 			break
 
-		if (StrEqual(szMapName, ""))
-			continue
-
 		ReplaceString(szMapName, sizeof(szMapName), "\r", "")
 		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
 
-		if (StrEqual(szMapName, szFindMap)) {
-			LM_PrintToServerError(szFindMap)
+		if (StrEqual(szMapName, "") || strlen(szMapName) < 2)
 			continue
-		}
-		
-		if (strlen(szMapName) < 2)
+
+		if (StrEqual(szMapName, szFindMap))
 			continue
 		
 		WriteFileLine(hTmp, szMapName)
@@ -328,10 +417,78 @@ void RemoveMapFromFile(const char[] szFilePath, const char[] szFindMap) {
 	RenameFile(szFilePath, szFileTmp)
 }
 
-void GetNextTestMap(char[] szMapName, int iMaxLen) {
-	ReadMapFromFile(g_szMaplistTxt, szMapName, iMaxLen)
-	// LM_PrintToServerError(szMapName)
+/**
+ * Compare two text file and remove duplicated from szFileToEdit
+ *
+ * @param szFileToEdit       File to edit
+ * @param szFileToCompare    File to compare from
+ */
+void RemoveDuplicatedFromFile(const char[] szFileToEdit, const char[] szFileToCompare) {
+	
+	char szMapName[32], szComapreName[32], szFileTmp[PLATFORM_MAX_PATH]
+	Format(szFileTmp, sizeof(szFileTmp), "%s.tmp", szFileToEdit)
+	
+	File hFileEdit = OpenFile(szFileToEdit, "r")
+	File hFileTmp = OpenFile(szFileTmp, "w")
+	File hFileCompare = OpenFile(szFileToCompare, "r")
+	
+	while (!hFileEdit.EndOfFile()) {
+
+		if (!hFileEdit.ReadLine(szMapName, sizeof(szMapName)))
+			break
+
+		ReplaceString(szMapName, sizeof(szMapName), "\r", "")
+		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
+
+		if (StrEqual(szMapName, "") || strlen(szMapName) < 2)
+			continue
+
+		bool bFound = false
+		hFileCompare.Seek(0, SEEK_SET)
+		while (!hFileCompare.EndOfFile()) {
+			if (!hFileCompare.ReadLine(szComapreName, sizeof(szComapreName)))
+				break
+
+			ReplaceString(szComapreName, sizeof(szComapreName), "\r", "")
+			ReplaceString(szComapreName, sizeof(szComapreName), "\n", "")
+
+			if (StrEqual(szComapreName, "") || strlen(szComapreName) < 2)
+				continue
+
+			if (StrEqual(szMapName, szComapreName)) {
+				bFound = true
+				break
+			}
+			
+
+		}
+		if (!bFound)
+			hFileTmp.WriteLine(szMapName)
+
+	}
+	hFileTmp.Flush()
+	hFileTmp.Close()
+
+	hFileEdit.Close()
+	hFileCompare.Close()
+	
+	DeleteFile(szFileToEdit)
+	RenameFile(szFileToEdit, szFileTmp)
+}
+
+/**
+ * Get next test map from maplist
+ *
+ * @param szMapName    Returned map name
+ * @param iMaxLen      Max length of szMapName
+ * @return True if found a map; false otherwise
+ */
+bool GetNextTestMap(char[] szMapName, int iMaxLen) {
+	if (!ReadMapFromFile(g_szMaplistTxt, szMapName, iMaxLen))
+		return false
+	
 	RemoveMapFromFile(g_szMaplistTxt, szMapName)
+	return true
 }
 
 

@@ -8,16 +8,16 @@ This plugin shall help you go through all those maps
 Note
 -----
 
-* It is recommended that `at least one player` stay in the server during the test. Some crashy maps require players to enter the game to trigger additional crash.
+* It is recommended that ***at least one player*** stay in the server during the test. Some crashy maps require players stay inside the game to trigger additional crash.
 
-* You might need a good server restarter that can detect `server heartbeats`, in case server `frozen` or popped a `engine error window` on some map, that would cause a normal restarter (batch scripts) could not restart the server properly, it commonly happened in old maps.
-![Engine Error](https://github.com/lazycatx64/sm_MapTester/blob/47b51fdfc4aedcaf7d2f61d3ec601d1b47e2e019/engineerror.png)
-* Currently only tested in HL2DM server, but in theory it is applicable to all source servers that runs SourceMod.
+* You might need a good server restarter that can detect ***server heartbeats***, in case server ***frozen*** or popped a ***Engine Error diaglog*** in some maps, that would cause a normal restarter (batch scripts) could not restart the server properly, this is common in old maps.
+  * ![Engine Error](/engineerror.png)
+* Currently only tested in HL2DM server, but in theory it should work all source servers that runs SourceMod since it does not touch game data or assets.
 
 Configs
 -----
 
-There's `/cfg/lm_maptester.cfg` included for default ConVars so you can config everything there.
+There's `/cfg/sourcemod/lm_maptester.cfg` included for default ConVars so you can config everything there.
 
 * `lm_maptester_enabled`
   * To enable/disable the Tester.
@@ -28,25 +28,33 @@ There's `/cfg/lm_maptester.cfg` included for default ConVars so you can config e
 * `lm_maptester_maplist`
   * Decides where we get map list from
   * Default: 0
-  * 0 = Search in `maps` folder
+  * 0 = Get every maps in `maps` folder (Recommended and easiest)
   * 1 = Uses built-in ConVar `mapcyclefile` value which default is: `mapcycle.txt`
-    * Will try to search this map list: `cfg/mapcycle.txt`
-    * Will try default list instead of not found: `cfg/mapcycle_default.txt`
-  * Any other path to a list file
-    * example: `cfg/rtv.cfg`
-      * Will try to search this map list: `cfg/rtv.cfg`
-    * or: `cfg/my_new_map_list.txt`
-      * Will try to search this map list: `cfg/my_new_map_list.txt`
+    * Will try to search this map list: `/cfg/mapcycle.txt`
+    * If not found, will try default list: `/cfg/mapcycle_default.txt`
+  * Path = Any other path to a list file
+    * example: `cfg/rtv.cfg` will try to search : `/cfg/rtv.cfg`
+    * or: `listmaps.txt` will try to search : `/listmaps.txt`
+
+How to use it?
+-----
+
+1. Download the plugin, put `lm_maptester.smx` to `/addons/sourcemod/plugins/` (or if you like to compile your own)
+1. (Optional) Put `lm_maptester.cfg` to `/cfg/sourcemod/` and config it first if needed.
+1. Start and join the server.
+1. Set `lm_maptester_enabled` to `1` to start the test.
+1. Get a cup of coffee ☕
+1. Check the `good.txt` and `bad.txt` for the result.
 
 Results
 -----
 
 * Good maps that loaded successfully will be logged to here
-  * `addons/sourcemod/data/maptester/good.txt`
+  * `/addons/sourcemod/data/maptester/good.txt`
 * Bad maps that crashed during loading will be logged to here next time server starts
-  * `addons/sourcemod/data/maptester/bad.txt`
+  * `/addons/sourcemod/data/maptester/bad.txt`
 
 More features?
 -----
 
-More features may/might/possibly will (or not) be added in the future.
+More features may/perhaps/possibly will (or not) be added in the future.
