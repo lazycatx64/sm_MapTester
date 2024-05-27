@@ -3,9 +3,13 @@
 
 #define MSGTAG "[MapTester]"
 
+bool g_bIsFirstStart = false
 
 ConVar g_hCvarMapTesterEnabled
 bool g_bCvarMapTesterEnabled = false
+
+ConVar g_hCvarMapTesterWait
+bool g_bCvarMapTesterWait = false
 
 ConVar g_hCvarChangeTime
 float g_fCvarChangeTime = 10.0
@@ -13,10 +17,11 @@ float g_fCvarChangeTime = 10.0
 ConVar g_hCvarMapList
 char g_szCvarMapList[PLATFORM_MAX_PATH] = ""
 
-char g_szNowTxt[PLATFORM_MAX_PATH]       = "--now.txt"
-char g_szBadTxt[PLATFORM_MAX_PATH]       = "bad.txt"
-char g_szGoodTxt[PLATFORM_MAX_PATH]      = "good.txt"
-char g_szMaplistTxt[PLATFORM_MAX_PATH]   = "--maplist.txt"
+char g_szNowTxt[PLATFORM_MAX_PATH]        = "--now.txt"
+char g_szMissingTxt[PLATFORM_MAX_PATH]    = "missing.txt"
+char g_szCrashTxt[PLATFORM_MAX_PATH]      = "crash.txt"
+char g_szGoodTxt[PLATFORM_MAX_PATH]       = "good.txt"
+char g_szMaplistTxt[PLATFORM_MAX_PATH]    = "--maplist.txt"
 
 char g_szDataFolder[PLATFORM_MAX_PATH]    = "data/maptester/"
 char g_szMapsFolder[PLATFORM_MAX_PATH]    = "maps/"
@@ -35,21 +40,34 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, err_max) {
 
 	LM_PrintToServerInfo("Map Tester loading...")
 
-	g_hCvarMapTesterEnabled	= CreateConVar("lm_maptester_enabled", "0", "Set 1 to start the tester.", FCVAR_NOTIFY, true, 0.0, true, 1.0)
+	g_hCvarMapTesterEnabled = CreateConVar("lm_maptester_enabled", "1", "Set 1 to start the tester.", FCVAR_NOTIFY, true, 0.0, true, 1.0)
 	g_hCvarMapTesterEnabled.AddChangeHook(Hook_CvarChanged)
 	CvarChanged(g_hCvarMapTesterEnabled)
 
-	g_hCvarChangeTime	= CreateConVar("lm_maptester_changetime", "10", "After map loaded, X seconds later will go next map", FCVAR_NOTIFY, true, 0.1)
+	g_hCvarMapTesterWait = CreateConVar("lm_maptester_waitplayer", "0", "Set 1 to wait for first player complete loaded into map, then we change map.", FCVAR_NOTIFY, true, 0.0, true, 1.0)
+	g_hCvarMapTesterWait.AddChangeHook(Hook_CvarChanged)
+	CvarChanged(g_hCvarMapTesterWait)
+
+	g_hCvarChangeTime = CreateConVar("lm_maptester_changetime", "3", "After map loaded, X seconds later will go next map", FCVAR_NOTIFY, true, 0.1)
 	g_hCvarChangeTime.AddChangeHook(Hook_CvarChanged)
 	CvarChanged(g_hCvarChangeTime)
 	
-	g_hCvarMapList	= CreateConVar("lm_maptester_maplist", "0", "0=Maps Folder, 1='mapcyclefile', or path to a list file, changing value will regenerate maplist", FCVAR_NOTIFY)
+	g_hCvarMapList = CreateConVar("lm_maptester_maplist", "0", "0=Maps Folder, 1='mapcyclefile', or path to a list file, changing value will regenerate maplist", FCVAR_NOTIFY)
 	g_hCvarMapList.AddChangeHook(Hook_CvarChanged)
 	CvarChanged(g_hCvarMapList)
 
+	HookEvent("player_disconnect", LM_OnClientDisconnect)
+
+	RegAdminCmd("lm_map_good", Command_MapGood, 0, "Skip current map and add it to good.txt")
+	RegAdminCmd("lm_map_missing", Command_MapMissing, 0, "Skip current map and add it to missing.txt")
+	RegAdminCmd("lm_map_crash", Command_MapCrash, 0, "Skip current map and add it to crash.txt")
+
+	AutoExecConfig(true, "lm_maptester")
+
 	BuildPath(Path_SM, g_szDataFolder, sizeof(g_szDataFolder), g_szDataFolder)
 	Format(g_szNowTxt,     sizeof(g_szNowTxt),     "%s%s", g_szDataFolder, g_szNowTxt)
-	Format(g_szBadTxt,     sizeof(g_szBadTxt),     "%s%s", g_szDataFolder, g_szBadTxt)
+	Format(g_szMissingTxt, sizeof(g_szMissingTxt), "%s%s", g_szDataFolder, g_szMissingTxt)
+	Format(g_szCrashTxt,   sizeof(g_szCrashTxt),   "%s%s", g_szDataFolder, g_szCrashTxt)
 	Format(g_szGoodTxt,    sizeof(g_szGoodTxt),    "%s%s", g_szDataFolder, g_szGoodTxt)
 	Format(g_szMaplistTxt, sizeof(g_szMaplistTxt), "%s%s", g_szDataFolder, g_szMaplistTxt)
 	
@@ -71,21 +89,120 @@ public OnPluginStart() {
 	LM_PrintToServerInfo("Map Tester loaded")
 }
 
+void LM_Skip_Map(const char[] szWriteMap) {
+	char szCurrentMap[64]
+	GetCurrentMap(szCurrentMap, sizeof(szCurrentMap))
+	LM_PrintToServerInfo("Map missing for players, going next map in %f seconds...", g_fCvarChangeTime)
+
+	WriteMapToFile(szWriteMap, szCurrentMap)
+	DeleteFile(g_szNowTxt)
+
+	CreateTimer(g_fCvarChangeTime, Timer_Countdown)
+
+}
+
+public Action Command_MapGood(plyClient, args) {
+	LM_Skip_Map(g_szGoodTxt)
+	return Plugin_Handled
+}
+
+public Action Command_MapMissing(plyClient, args) {
+	LM_Skip_Map(g_szMissingTxt)
+	return Plugin_Handled
+}
+
+public Action Command_MapCrash(plyClient, args) {
+	LM_Skip_Map(g_szCrashTxt)
+	return Plugin_Handled
+}
+
+
+
 public void OnMapStart() {
 	if (!g_bCvarMapTesterEnabled)
 		return
+
+	if (!g_bIsFirstStart) {
+
+		LM_PrintToServerInfo("Tests will start in 5 seconds.")
+		CreateTimer(5.0, Timer_DelayedOnMapStart)
+		g_bIsFirstStart = true
+		return
+	}
+	LM_MapStart()
 	
-	AutoExecConfig(true, "lm_maptester")
+}
+
+Action Timer_DelayedOnMapStart(Handle hTimer, any data) {
+	if (!g_bCvarMapTesterEnabled)
+		return Plugin_Handled
+
+	LM_MapStart()
+	return Plugin_Handled
+}
+
+void LM_MapStart() {
+
+	if (g_bCvarMapTesterWait) {
+		char szCurrentMap[64]
+		GetCurrentMap(szCurrentMap, sizeof(szCurrentMap))
+		LM_PrintToServerInfo("Map '%s' successfully loaded, wait for player to join...", szCurrentMap, g_fCvarChangeTime)
+
+	} else {
+
+		char szCurrentMap[64]
+		GetCurrentMap(szCurrentMap, sizeof(szCurrentMap))
+		LM_PrintToServerInfo("Map '%s' successfully loaded, going next map in %f seconds...", szCurrentMap, g_fCvarChangeTime)
+
+		WriteMapToFile(g_szGoodTxt, szCurrentMap)
+		DeleteFile(g_szNowTxt)
+
+		CreateTimer(g_fCvarChangeTime, Timer_Countdown)
+	}
+	
+}
+
+public void OnClientPostAdminCheck(int plyClient) {
+	if (!g_bCvarMapTesterEnabled)
+		return
+	
+	if (!g_bCvarMapTesterWait)
+		return
 
 	char szCurrentMap[64]
 	GetCurrentMap(szCurrentMap, sizeof(szCurrentMap))
-	LM_PrintToServerInfo("Map '%s' successfully loaded, going next map in %f seconds...", szCurrentMap, g_fCvarChangeTime)
+	LM_PrintToServerInfo("First player loaded, going next map in %f seconds...", g_fCvarChangeTime)
 
 	WriteMapToFile(g_szGoodTxt, szCurrentMap)
 	DeleteFile(g_szNowTxt)
 
 	CreateTimer(g_fCvarChangeTime, Timer_Countdown)
+	
 }
+
+void LM_OnClientDisconnect(Event hEvent, const char[] name, bool dontBroadcast) {
+	
+	if (!g_bCvarMapTesterEnabled)
+		return
+	
+	char szReason[64]
+	hEvent.GetString("reason", szReason, sizeof(szReason))
+	
+	if (StrContains(szReason, "Map is missing", false) != 0)
+		return
+
+	
+	char szCurrentMap[64]
+	GetCurrentMap(szCurrentMap, sizeof(szCurrentMap))
+	LM_PrintToServerInfo("Map missing for players, going next map in %f seconds...", g_fCvarChangeTime)
+
+	WriteMapToFile(g_szMissingTxt, szCurrentMap)
+	DeleteFile(g_szNowTxt)
+
+	CreateTimer(g_fCvarChangeTime, Timer_Countdown)
+
+}
+
 
 Action Timer_Countdown(Handle hTimer, any data) {
 
@@ -95,7 +212,7 @@ Action Timer_Countdown(Handle hTimer, any data) {
 		LM_PrintToServerInfo("==============================================")
 		LM_PrintToServerInfo("Could not get next map! perhaps we tested all maps already?")
 		LM_PrintToServerInfo("Go '%s'", g_szDataFolder)
-		LM_PrintToServerInfo("and see the results in good.txt and bad.txt")
+		LM_PrintToServerInfo("and see the results in good.txt and crash.txt")
 		LM_PrintToServerInfo("==============================================")
 		DeleteFile(g_szMaplistTxt)
 		return Plugin_Handled
@@ -120,6 +237,8 @@ Hook_CvarChanged(Handle convar, const char[] oldValue, const char[] newValue) {
 void CvarChanged(Handle convar) {
 	if (convar == g_hCvarMapTesterEnabled)
 		g_bCvarMapTesterEnabled = g_hCvarMapTesterEnabled.BoolValue
+	else if (convar == g_hCvarMapTesterWait)
+		g_bCvarMapTesterWait = g_hCvarMapTesterWait.BoolValue
 	else if (convar == g_hCvarChangeTime)
 		g_fCvarChangeTime = g_hCvarChangeTime.FloatValue
 	else if (convar == g_hCvarMapList) {
@@ -134,7 +253,7 @@ void CvarChanged(Handle convar) {
 /**
  * Check if Now.txt exists and has map name it in,
  * means that map crashed during loading,
- * then write that to bad.txt.
+ * then write that to crash.txt.
  */
 void Check_NowFile() {
 
@@ -156,8 +275,8 @@ void Check_NowFile() {
 		ReplaceString(szMapName, sizeof(szMapName), "\n", "")
 
 		if (!StrEqual(szMapName, "") && strlen(szMapName) > 1) {
-			LM_PrintToServerInfo("Writing '%s' map to bad.txt.", szMapName)
-			WriteMapToFile(g_szBadTxt, szMapName)
+			LM_PrintToServerInfo("Writing '%s' map to crash.txt.", szMapName)
+			WriteMapToFile(g_szCrashTxt, szMapName)
 			break
 		}
 	}
@@ -167,15 +286,18 @@ void Check_NowFile() {
 }
 
 /**
- * Check tested maps from Good.txt and Bad.txt
+ * Check tested maps from good.txt and crash.txt
  */
 void Check_TestedMaps() {
 
 	if (FileExists(g_szGoodTxt))
 		RemoveDuplicatedFromFile(g_szMaplistTxt, g_szGoodTxt)
 
-	if (FileExists(g_szBadTxt))
-		RemoveDuplicatedFromFile(g_szMaplistTxt, g_szBadTxt)
+	if (FileExists(g_szMissingTxt))
+		RemoveDuplicatedFromFile(g_szMaplistTxt, g_szMissingTxt)
+	
+	if (FileExists(g_szCrashTxt))
+		RemoveDuplicatedFromFile(g_szMaplistTxt, g_szCrashTxt)
 	
 }
 
